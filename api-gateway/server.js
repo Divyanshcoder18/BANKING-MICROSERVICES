@@ -10,10 +10,12 @@ const { RedisStore } = require('rate-limit-redis');
 
 const app = express();
 
-const redisClient = new Redis({
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT,
-});
+const redisClient = process.env.REDIS_URL
+    ? new Redis(process.env.REDIS_URL)
+    : new Redis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+    });
 
 // Middleware
 app.use(cors({ origin: true, credentials: true }));

@@ -4,10 +4,12 @@ const tokenblacklistmodel = require('../models/blacklistmodel.js');
 const { sendregiseremail } = require('../services/email.services.js');
 
 const Redis = require('ioredis');
-const redisClient = new Redis({
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT,
-});
+const redisClient = process.env.REDIS_URL
+    ? new Redis(process.env.REDIS_URL)
+    : new Redis({
+        host: process.env.REDIS_HOST || 'localhost',
+        port: process.env.REDIS_PORT || 6379,
+    });
 
 const userregistercontroller = async (req, res) => {
     try {
