@@ -1,0 +1,140 @@
+services:
+
+  # --- INFRASTRUCTURE ---
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    networks:
+      - banking-network
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - banking-network
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - banking-network
+
+
+  # --- MICROSERVICES ---
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "5002:5002"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/banking-system
+      - JWT_SECRET=divu123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - banking-network
+
+  user-service:
+    build: ./user-service
+    ports:
+      - "5003:5003"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/banking-system
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - banking-network
+
+  transaction-service:
+    build: ./transaction-service
+    ports:
+      - "5001:5001"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/banking-system
+      - RABBITMQ_URL=amqp://rabbitmq
+    depends_on:
+      - mongodb
+      - rabbitmq
+    networks:
+      - banking-network
+
+  notification-service:
+    build: ./notification-service
+    ports:
+      - "5004:5004"
+    environment:
+      - RABBITMQ_URL=amqp://rabbitmq
+      - EMAIL_USER=${EMAIL_USER}
+      - CLIENT_ID=${CLIENT_ID}
+      - CLIENT_SECRET=${CLIENT_SECRET}
+      - REFRESH_TOKEN=${REFRESH_TOKEN}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+    networks:
+      - banking-network
+
+  api-gateway:
+    build: ./api-gateway
+    ports:
+      - "3000:3000"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:5002
+      - USER_SERVICE_URL=http://user-service:5003
+      - TRANSACTION_SERVICE_URL=http://transaction-service:5001
+      - JWT_SECRET=divu123
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - auth-service
+      - user-service
+      - transaction-service
+      - redis
+    networks:
+      - banking-network
+
+  audit-service:
+    build: ./audit-service
+    ports:
+      - "5006:5006"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/banking-system
+      - RABBITMQ_URL=amqp://rabbitmq
+    depends_on:
+      - mongodb
+      - rabbitmq
+    networks:
+      - banking-network
+
+  fraud-service:
+    build: ./fraud-service
+    ports:
+      - "5005:5005"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/banking-system
+      - RABBITMQ_URL=amqp://rabbitmq
+    depends_on:
+      - mongodb
+      - rabbitmq
+    networks:
+      - banking-network
+
+networks:
+
+  banking-network:
+    driver: bridge

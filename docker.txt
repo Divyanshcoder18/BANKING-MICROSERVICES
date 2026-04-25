@@ -1,0 +1,158 @@
+I've created the first Dockerfile in the 
+
+*******************
+auth-service folder.
+******************
+
+ Here’s a quick revision of what each line does:
+
+FROM node:18-alpine: We start with a tiny version of Node.js. "Alpine" is great because it keeps our image small (around 50MB instead of 1GB!).
+WORKDIR /usr/src/app: Inside the container, all our files will live in this folder.
+COPY package*.json ./: We copy just the package files first.
+RUN npm install: We run this before copying the rest of the code. Why? Because if you change your code but don't change your dependencies, Docker will skip this step next time (this is called Layer Caching).
+COPY . .: Now we copy the actual code.
+EXPOSE 5001: This just tells Docker which port our app listens on.
+CMD ["node", "server.js"]: This starts our server when the container turns on.
+Does this make sense so far? Shall we move to the next service (user-service) or do you have questions about these lines?
+
+Dockerfile
+Open
+listen int his docker file how u wrote abt  second step 
+
+
+Thought for 2s
+
+
+Great question! That second step is WORKDIR /usr/src/app.
+
+Think of it like the cd command.
+
+When the container starts, it's like a brand new empty computer. We need to tell it where our "workspace" is.
+
+What it does: It tells Docker, "For everything that follows (copying files, installing libraries, running the code), use the folder /usr/src/app as our home base."
+Why we use it: If we don't use WORKDIR, Docker will put everything in the root folder (/), which gets messy and can sometimes cause permission problems.
+Automatic: If that folder doesn't exist yet, Docker is smart enough to create it for us automatically.
+Does that clear it up? Ready to do the user-service Dockerfile now? 🚀
+
+listen  /usr/src/app  how did u write like thta 
+
+
+Thought for 3s
+
+
+I understand why it looks a bit strange! Since you're on Windows, you're used to paths like C:\Users\Project.
+
+But here’s the secret: Docker containers are almost always running Linux inside.
+
+Forward Slashes (/): In Linux, we use forward slashes / instead of backslashes \. Even if you are coding on Windows, inside the container, it's Linux language!
+Why that specific folder?
+/usr/src/app is basically the "Professional Standard" address for app code in the Linux world.
+usr = User-specific system stuff.
+src = Source code.
+app = Your specific application
+
+*****
+
+Dockerfile for user-service 🏠
+I've created the Dockerfile for the User Service.
+
+You'll notice it's exactly the same structure as the Auth Service, except for one line: EXPOSE 5003
+
+Most Node.js microservices will look like this. The pattern is:
+
+Select Environment (Node Version)
+Set Home Base (WORKDIR)
+Install Apps (RUN npm install)
+Copy Code (COPY . .)
+Open Door (Port 5003)
+Start Engine (node server.js)
+
+
+*****
+
+Notice a pattern? Every service uses the same container logic, just a different port. This is the beauty of microservices—they follow a standard "contract."
+
+The final service to dockerize is the api-gateway
+
+
+*********
+
+
+1. The Global Setup
+yaml
+version: '3.8'           # Denotes the version of Docker Compose syntax we are using.
+services:                # This starts the list of all containers we want to run.
+
+
+2. Infrastructure (Ready-made Images)
+Take mongodb for example:
+
+yaml
+mongodb:
+    image: mongo:latest  # We don't have a Dockerfile for Mongo. We just download the official one from the internet!
+    ports:
+      - "27017:27017"    # "Host Port : Container Port". 
+                         # This lets you use MongoDB Compass on your Windows machine to see the data inside the container.
+    networks:
+      - banking-network  # Tells Mongo to join our private virtual club so other services can talk to it.
+3. Your Microservices (Custom Built)
+Take auth-service:
+
+yaml
+auth-service:
+    build: ./auth-service # Instead of an 'image', we tell Docker to GO to that folder and find our Dockerfile!
+    ports:
+      - "5002:5002"
+    environment:          # This is the most important part!
+      - MONGODB_URI=mongodb://mongodb:27017/banking-system 
+                          # Look closely: instead of 'localhost', we use the name 'mongodb'! 
+                          # Docker handles the IP address magic for us.
+      - JWT_SECRET=divu123
+    depends_on:
+      - mongodb           # Tells Docker: "Don't start Auth-Service until MongoDB is ready."
+    networks:
+      - banking-network
+4. Special Case: Notification Service
+yaml
+notification-service:
+    ...
+    environment:
+      - EMAIL_USER=${EMAIL_USER} # The ${} syntax tells Docker: "Look at the .env file on my Windows machine 
+                                # and copy the value here." This keeps your passwords safe!
+5. Final Step: The Network
+yaml
+networks:
+  banking-network:        # We define the name of our private virtual network.
+    driver: bridge        # 'bridge' is the default mode that creates a private network inside your computer for these containers.
+
+
+
+
+    *******
+
+    Open your terminal in the root folder (BANKING SYSTEM) and type:
+
+bash
+docker-compose up --build
+That’s it! You'll see all 7 services, plus Database and RabbitMQ, springing to life in one single window.
+
+In a microservices project, the screen gets very crowded with logs from 9 different containers. Here is how pros handle it:
+
+1. See only what you care about: If you want to only see the Notification Service logs (to see your new DLQ in action), run this in a new terminal:
+
+bash
+docker-compose logs -f notification-service
+2. Detached Mode: You can start the project in the background so it doesn't take up your terminal:
+
+bash
+docker-compose up -d
+3. Docker Desktop: If you open the Docker Desktop app, you can click on each container separately to see only its individual logs. It’s much cleaner! 🖥️
+
+Ready to move to the next level? Should we implement the Delayed Retries (Retry 3 times before giving up to the DLQ) or would you like to take a break and explore your Docker dashboard? 🚀🏆
+
+
+To apply the DLQ changes, you MUST rebuild:
+Please run this command:
+
+bash
+docker-compose up --build
