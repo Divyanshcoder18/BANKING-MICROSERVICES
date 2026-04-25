@@ -69,6 +69,7 @@ const createProxyOptions = (targetUrl) => ({
     proxyReqPathResolver: (req) => {
         return req.url;
     },
+    timeout: 30000, // 30s timeout
     proxyErrorHandler: (err, res, next) => {
         console.error(`[GATEWAY PROXY ERROR] to ${targetUrl}:`, err.message);
         res.status(502).json({ error: 'Service Unavailable', details: err.message });
@@ -76,12 +77,36 @@ const createProxyOptions = (targetUrl) => ({
 });
 
 // SERVICE ROUTING (Before express.json to fix POST issues)
-app.use('/api/auth', proxy(process.env.AUTH_SERVICE_URL || 'http://localhost:5002', createProxyOptions(process.env.AUTH_SERVICE_URL || 'http://localhost:5002')));
+// 🔐 Manual Auth Forwarding (Total control to stop 502s)
+app.use('/api/auth', async (req, res) => {
+    try {
+        const targetUrl = process.env.AUTH_SERVICE_URL || 'http://localhost:5002';
+        const fullUrl = `${targetUrl}${req.url}`;
+
+        console.log(`[GATEWAY] Forwarding to: ${fullUrl}`);
+
+        const response = await fetch(fullUrl, {
+            method: req.method,
+            headers: {
+                ...req.headers,
+                'host': new URL(targetUrl).host
+            },
+            body: ['POST', 'PUT', 'PATCH'].includes(req.method) ? JSON.stringify(req.body) : undefined
+        });
+
+        const data = await response.json();
+        res.status(response.status).json(data);
+    } catch (error) {
+        console.error('[GATEWAY AUTH ERROR]:', error.message);
+        res.status(502).json({ success: false, message: "Auth Service unreachable", details: error.message });
+    }
+});
+
 app.use('/api/users', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', createProxyOptions(process.env.USER_SERVICE_URL || 'http://localhost:5003')));
 app.use('/api/account', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', createProxyOptions(process.env.USER_SERVICE_URL || 'http://localhost:5003')));
 app.use('/api/transaction', protect, proxy(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001', createProxyOptions(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001')));
 
-// Fallback Body Parser for other routes
+// Body Parser for Manual Routing
 app.use(express.json());
 
 
