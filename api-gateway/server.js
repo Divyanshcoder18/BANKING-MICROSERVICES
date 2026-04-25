@@ -59,23 +59,27 @@ const protect = (req, res, next) => {
     });
 };
 
-// Proxy with headers preservation
-const proxyOptions = {
-    proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
-        // Ensure tokens and cookies are passed through
+// Proxy Helper
+const createProxyOptions = (targetUrl) => ({
+    proxyReqOptDecorator: (proxyReqOpts, srcReq) => {
+        const url = new URL(targetUrl);
+        proxyReqOpts.headers['host'] = url.host;
         return proxyReqOpts;
     },
+    proxyReqPathResolver: (req) => {
+        return req.url; // preserves /register etc.
+    },
     proxyErrorHandler: (err, res, next) => {
-        console.error('[GATEWAY PROXY ERROR]', err.message);
+        console.error(`[GATEWAY PROXY ERROR] to ${targetUrl}:`, err.message);
         res.status(502).json({ error: 'Service Unavailable', details: err.message });
     }
-};
+});
 
 // SERVICE ROUTING
-app.use('/api/auth', proxy(process.env.AUTH_SERVICE_URL || 'http://localhost:5002', proxyOptions));
-app.use('/api/users', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', proxyOptions));
-app.use('/api/account', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', proxyOptions));
-app.use('/api/transaction', protect, proxy(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001', proxyOptions));
+app.use('/api/auth', proxy(process.env.AUTH_SERVICE_URL || 'http://localhost:5002', createProxyOptions(process.env.AUTH_SERVICE_URL || 'http://localhost:5002')));
+app.use('/api/users', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', createProxyOptions(process.env.USER_SERVICE_URL || 'http://localhost:5003')));
+app.use('/api/account', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', createProxyOptions(process.env.USER_SERVICE_URL || 'http://localhost:5003')));
+app.use('/api/transaction', protect, proxy(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001', createProxyOptions(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001')));
 
 
 const PORT = process.env.PORT || 3000;
