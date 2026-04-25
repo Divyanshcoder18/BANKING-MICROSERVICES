@@ -21,7 +21,6 @@ const redisClient = process.env.REDIS_URL
 // Middleware
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
-app.use(express.json());
 
 // Gateway Logging
 app.use((req, res, next) => {
@@ -29,7 +28,8 @@ app.use((req, res, next) => {
     next();
 });
 
-// 🛡️ Rate Limiter (The Bouncer)
+// 🛡️ Rate Limiter (DISABLED FOR DEBUGGING)
+/*
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 100,
@@ -38,6 +38,7 @@ const limiter = rateLimit({
     }),
 });
 app.use(limiter);
+*/
 
 const protect = (req, res, next) => {
     const authHeader = req.headers['authorization'];
@@ -45,7 +46,6 @@ const protect = (req, res, next) => {
 
     if (!token) {
         console.log("❌ [GATEWAY] Auth Failed: No token found");
-        console.log("🔍 Incoming Headers:", JSON.stringify(req.headers, null, 2));
         return res.status(401).json({ message: "Authentication required" });
     }
 
@@ -54,7 +54,6 @@ const protect = (req, res, next) => {
             console.log("❌ [GATEWAY] Auth Failed: Invalid token", err.message);
             return res.status(403).json({ message: "Invalid or expired token" });
         }
-        console.log(`✅ [GATEWAY] Auth Success: User ${decoded.id}`);
         req.user = decoded;
         next();
     });
@@ -68,7 +67,7 @@ const createProxyOptions = (targetUrl) => ({
         return proxyReqOpts;
     },
     proxyReqPathResolver: (req) => {
-        return req.url; // preserves /register etc.
+        return req.url;
     },
     proxyErrorHandler: (err, res, next) => {
         console.error(`[GATEWAY PROXY ERROR] to ${targetUrl}:`, err.message);
@@ -76,11 +75,14 @@ const createProxyOptions = (targetUrl) => ({
     }
 });
 
-// SERVICE ROUTING
+// SERVICE ROUTING (Before express.json to fix POST issues)
 app.use('/api/auth', proxy(process.env.AUTH_SERVICE_URL || 'http://localhost:5002', createProxyOptions(process.env.AUTH_SERVICE_URL || 'http://localhost:5002')));
 app.use('/api/users', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', createProxyOptions(process.env.USER_SERVICE_URL || 'http://localhost:5003')));
 app.use('/api/account', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', createProxyOptions(process.env.USER_SERVICE_URL || 'http://localhost:5003')));
 app.use('/api/transaction', protect, proxy(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001', createProxyOptions(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001')));
+
+// Fallback Body Parser for other routes
+app.use(express.json());
 
 
 const PORT = process.env.PORT || 3000;
