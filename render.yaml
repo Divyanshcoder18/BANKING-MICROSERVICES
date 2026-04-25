@@ -1,0 +1,77 @@
+services:
+  # 1. API Gateway
+  - type: web
+    name: banking-gateway
+    env: node
+    rootDir: api-gateway
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: AUTH_SERVICE_URL
+        value: https://banking-auth-service.onrender.com
+      - key: USER_SERVICE_URL
+        value: https://banking-user-service.onrender.com
+      - key: TRANSACTION_SERVICE_URL
+        value: https://banking-transaction-service.onrender.com
+
+  # 2. Auth Service
+  - type: web
+    name: banking-auth-service
+    env: node
+    rootDir: auth-service
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+  # 3. User Service
+  - type: web
+    name: banking-user-service
+    env: node
+    rootDir: user-service
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: RABBITMQ_URI
+        sync: false
+
+  # 4. Transaction Service
+  - type: web
+    name: banking-transaction-service
+    env: node
+    rootDir: transaction-service
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: RABBITMQ_URI
+        sync: false
+
+  # 5. Notification Service
+  - type: web
+    name: banking-notification-service
+    env: node
+    rootDir: notification-service
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: RABBITMQ_URI
+        sync: false
