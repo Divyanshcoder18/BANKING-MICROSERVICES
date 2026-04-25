@@ -3,7 +3,8 @@ import axios from 'axios';
 // We create a custom instance of Axios
 const API = axios.create({
   // This is the URL of your All-in-one Backend Server (Monolith)
-  baseURL: 'http://localhost:3000/api',
+  // This is the URL of your Live API Gateway on Render
+  baseURL: 'https://banking-api-t8iu.onrender.com/api',
 });
 
 // The INTERCEPTOR
@@ -11,12 +12,12 @@ const API = axios.create({
 API.interceptors.request.use((config) => {
   // 1. We look inside the browser's "localStorage" for a token
   const token = localStorage.getItem('token');
-  
+
   // 2. If we find a token, we attach it to the "Authorization" header
   if (token) {
     config.headers.Authorization = `${token}`;
   }
-  
+
   return config;
 }, (error) => {
   return Promise.reject(error);
