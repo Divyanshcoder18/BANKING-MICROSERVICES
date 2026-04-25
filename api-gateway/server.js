@@ -59,9 +59,6 @@ const protect = (req, res, next) => {
     });
 };
 
-// SERVICE ROUTING
-app.use('/api/auth', proxy(process.env.AUTH_SERVICE_URL || 'http://localhost:5002', proxyOptions));
-
 // Proxy with headers preservation
 const proxyOptions = {
     proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
@@ -74,6 +71,8 @@ const proxyOptions = {
     }
 };
 
+// SERVICE ROUTING
+app.use('/api/auth', proxy(process.env.AUTH_SERVICE_URL || 'http://localhost:5002', proxyOptions));
 app.use('/api/users', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', proxyOptions));
 app.use('/api/account', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', proxyOptions));
 app.use('/api/transaction', protect, proxy(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001', proxyOptions));
