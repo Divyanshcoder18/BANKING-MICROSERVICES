@@ -9,6 +9,7 @@ const Redis = require('ioredis');
 const { RedisStore } = require('rate-limit-redis');
 
 const app = express();
+app.set('trust proxy', 1);
 
 const redisClient = process.env.REDIS_URL
     ? new Redis(process.env.REDIS_URL)
