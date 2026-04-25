@@ -21,6 +21,7 @@ const redisClient = process.env.REDIS_URL
 // Middleware
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
+app.use(express.json());
 
 // Gateway Logging
 app.use((req, res, next) => {
@@ -105,9 +106,6 @@ app.use('/api/auth', async (req, res) => {
 app.use('/api/users', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', createProxyOptions(process.env.USER_SERVICE_URL || 'http://localhost:5003')));
 app.use('/api/account', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', createProxyOptions(process.env.USER_SERVICE_URL || 'http://localhost:5003')));
 app.use('/api/transaction', protect, proxy(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001', createProxyOptions(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001')));
-
-// Body Parser for Manual Routing
-app.use(express.json());
 
 
 const PORT = process.env.PORT || 3000;
