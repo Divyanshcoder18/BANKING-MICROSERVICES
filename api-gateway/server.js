@@ -60,13 +60,17 @@ const protect = (req, res, next) => {
 };
 
 // SERVICE ROUTING
-app.use('/api/auth', proxy(process.env.AUTH_SERVICE_URL || 'http://localhost:5002'));
+app.use('/api/auth', proxy(process.env.AUTH_SERVICE_URL || 'http://localhost:5002', proxyOptions));
 
 // Proxy with headers preservation
 const proxyOptions = {
     proxyReqOptDecorator: function (proxyReqOpts, srcReq) {
         // Ensure tokens and cookies are passed through
         return proxyReqOpts;
+    },
+    proxyErrorHandler: (err, res, next) => {
+        console.error('[GATEWAY PROXY ERROR]', err.message);
+        res.status(502).json({ error: 'Service Unavailable', details: err.message });
     }
 };
 
