@@ -3,7 +3,9 @@ import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import { motion } from 'framer-motion';
-import { Wallet, ArrowUpRight, ArrowDownLeft, History, LogOut, Plus, RefreshCw, ChevronRight } from 'lucide-react';
+import { jsPDF } from 'jspdf';
+import 'jspdf-autotable';
+import { Wallet, ArrowUpRight, ArrowDownLeft, History, LogOut, Plus, RefreshCw, ChevronRight, Search, Filter, Download } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import TransferModal from '../components/TransferModal';
 import DepositModal from '../components/DepositModal';
@@ -17,12 +19,59 @@ function Dashboard() {
   const navigate = useNavigate();
 
   // 1. STATE: We need spaces in memory to hold our bank data
-  // 1. STATE: We need spaces in memory to hold our bank data
   const [accounts, setAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [selectedAccountId, setSelectedAccountId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // SEARCH & FILTER STATE
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState('ALL'); // 'ALL', 'INCOME', 'EXPENSE'
+
+  const downloadReceipt = (tx) => {
+    const doc = new jsPDF();
+    const isIncome = tx.toaccount === selectedAccount?._id;
+
+    // Header
+    doc.setFillColor(15, 23, 42); // Slate 950
+    doc.rect(0, 0, 210, 40, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.text('APEX GLOBAL BANK', 14, 25);
+    doc.setFontSize(10);
+    doc.text('Official Transaction Receipt', 14, 32);
+
+    // Transaction Info
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(12);
+    doc.text(`Transaction ID: ${tx._id}`, 14, 55);
+    doc.text(`Date: ${new Date(tx.createdAt).toLocaleString()}`, 14, 62);
+    doc.text(`Status: ${tx.status}`, 14, 69);
+
+    // Table
+    doc.autoTable({
+      startY: 80,
+      head: [['Description', 'Details']],
+      body: [
+        ['Type', isIncome ? 'Credit (Payment Received)' : 'Debit (Transfer Sent)'],
+        ['Amount', `$${tx.amount.toLocaleString()}`],
+        ['Account ID', isIncome ? tx.toaccount : tx.fromaccount],
+        ['Counterparty', isIncome ? tx.fromaccount : tx.toaccount],
+      ],
+      theme: 'striped',
+      headStyles: { fillColor: [37, 99, 235] } // Blue 600
+    });
+
+    // Footer
+    doc.setFontSize(10);
+    doc.setTextColor(150, 150, 150);
+    doc.text('Thank you for choosing Apex Global Bank.', 14, doc.lastAutoTable.finalY + 20);
+    doc.text('This is a computer-generated document.', 14, doc.lastAutoTable.finalY + 25);
+
+    doc.save(`Receipt-${tx._id.slice(-6)}.pdf`);
+    toast.success('Receipt downloaded successfully!');
+  };
 
   // 1.5 MODAL STATE
   const [isTransferOpen, setIsTransferOpen] = useState(false);
@@ -297,45 +346,104 @@ function Dashboard() {
             <button className="text-blue-400 text-sm font-semibold hover:underline">View All</button>
           </div>
 
-          <div className="space-y-4">
-            {transactions.length > 0 ? (
-              transactions.map((tx, index) => (
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.05 }}
-                  key={tx._id}
-                  className="group flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800/50 rounded-2xl hover:bg-slate-800/50 hover:border-slate-700 transition-all cursor-pointer"
+          <div className="flex flex-col md:flex-row items-center gap-4 mb-8">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-600" size={18} />
+              <input 
+                type="text" 
+                placeholder="Search transactions..." 
+                className="w-full bg-slate-900 border border-slate-800 rounded-2xl pl-12 pr-4 py-3 text-sm focus:ring-2 focus:ring-blue-500/50 outline-none transition-all"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-2xl w-full md:w-auto">
+              {['ALL', 'INCOME', 'EXPENSE'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setFilterType(type)}
+                  className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                    filterType === type ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' : 'text-slate-500 hover:text-slate-300'
+                  }`}
                 >
-                  <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-xl ${tx.fromaccount === user.accountId ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
-                      {tx.fromaccount === user.accountId ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
-                    </div>
-                    <div>
-                      <p className="font-bold text-slate-200">
-                        {tx.fromaccount === user.accountId ? 'Transfer Sent' : 'Payment Received'}
-                      </p>
-                      <p className="text-xs text-slate-500 font-medium">
-                        {new Date(tx.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className={`text-lg font-black ${tx.fromaccount === user.accountId ? 'text-white' : 'text-emerald-400'}`}>
-                      {tx.fromaccount === user.accountId ? '-' : '+'}${tx.amount.toLocaleString()}
-                    </p>
-                    <div className="flex items-center justify-end gap-1.5 mt-1">
-                      <div className={`w-1.5 h-1.5 rounded-full ${tx.status === 'SUCCESS' ? 'bg-emerald-400' : 'bg-orange-400 animate-pulse'}`}></div>
-                      <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase">{tx.status}</span>
-                    </div>
-                  </div>
-                </motion.div>
-              ))
-            ) : (
-              <div className="py-12 text-center border-2 border-dashed border-slate-800 rounded-3xl">
-                <p className="text-slate-500 font-medium italic">No transactions found for this account.</p>
-              </div>
-            )}
+                  {type}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {(() => {
+              const filtered = transactions.filter(tx => {
+                const isIncome = tx.toaccount === selectedAccount?._id;
+                const matchesFilter = 
+                  filterType === 'ALL' || 
+                  (filterType === 'INCOME' && isIncome) || 
+                  (filterType === 'EXPENSE' && !isIncome);
+                
+                const matchesSearch = 
+                  tx.status.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  tx.id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  tx.amount.toString().includes(searchTerm);
+
+                return matchesFilter && matchesSearch;
+              });
+
+              return filtered.length > 0 ? (
+                filtered.map((tx, index) => {
+                  const isIncome = tx.toaccount === selectedAccount?._id;
+                  return (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      key={tx._id}
+                      className="group flex items-center justify-between p-4 bg-slate-900/50 border border-slate-800/50 rounded-2xl hover:bg-slate-800/50 hover:border-slate-700 transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-4">
+                        <div className={`p-3 rounded-xl ${!isIncome ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-500'}`}>
+                          {!isIncome ? <ArrowUpRight size={20} /> : <ArrowDownLeft size={20} />}
+                        </div>
+                        <div>
+                          <p className="font-bold text-slate-200">
+                            {!isIncome ? 'Transfer Sent' : 'Payment Received'}
+                          </p>
+                          <p className="text-xs text-slate-500 font-medium">
+                            {new Date(tx.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right flex items-center gap-4">
+                        <div>
+                          <p className={`text-lg font-black ${!isIncome ? 'text-white' : 'text-emerald-400'}`}>
+                            {!isIncome ? '-' : '+'}${tx.amount.toLocaleString()}
+                          </p>
+                          <div className="flex items-center justify-end gap-1.5 mt-1">
+                            <div className={`w-1.5 h-1.5 rounded-full ${tx.status === 'SUCCESS' ? 'bg-emerald-400' : 'bg-orange-400 animate-pulse'}`}></div>
+                            <span className="text-[10px] font-bold text-slate-500 tracking-wider uppercase">{tx.status}</span>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadReceipt(tx);
+                          }}
+                          className="p-2 rounded-xl bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 transition-all opacity-0 group-hover:opacity-100"
+                          title="Download Receipt"
+                        >
+                          <Download size={16} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  );
+                })
+              ) : (
+                <div className="py-12 text-center border-2 border-dashed border-slate-800 rounded-3xl">
+                  <p className="text-slate-500 font-medium italic">No matching transactions found.</p>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
