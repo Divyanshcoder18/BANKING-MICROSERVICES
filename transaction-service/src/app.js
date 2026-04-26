@@ -12,4 +12,8 @@ app.use(cookieParser());
 // Mount all transaction routes directly (API Gateway handles the /api/transaction prefix)
 app.use('/', transactionRoutes);
 
+app.get('/health', (req, res) => {
+    res.json({ status: "TRANSACTION_SERVICE_UP", timestamp: new Date() });
+});
+
 module.exports = app;

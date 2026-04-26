@@ -23,4 +23,8 @@ app.use(cookieParser());
 // Mount all account routes directly (API Gateway handles the /api/users prefix)
 app.use('/', accountRoutes);
 
+app.get('/health', (req, res) => {
+    res.json({ status: "USER_SERVICE_UP", timestamp: new Date() });
+});
+
 module.exports = app;

@@ -12,4 +12,8 @@ app.use(cookieParser());
 // Mount all auth routes directly (API Gateway handles the /api/auth prefix)
 app.use('/', authRoutes);
 
+app.get('/health', (req, res) => {
+    res.json({ status: "AUTH_SERVICE_UP", timestamp: new Date() });
+});
+
 module.exports = app;
