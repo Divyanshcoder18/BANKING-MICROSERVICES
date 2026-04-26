@@ -6,25 +6,17 @@ const { connectRabbitMQ } = require('./src/utils/consumer.js');
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 5005;app.get('/health', (req, res) => res.json({ status: 'UP' }));
+// HEALTH CHECK MUST BE FIRST
+app.get('/health', (req, res) => res.json({ status: 'UP' }));
+
+const PORT = process.env.PORT || 5005;
+
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log("✅ Fraud Service DB Connected"))
+    .catch(err => console.error("❌ Fraud DB Error:", err));
+
+connectRabbitMQ();
 
 app.listen(PORT, () => {
     console.log(`🚀 Fraud Service is monitoring on port ${PORT}`);
-});
-
-// 1. Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-    .then(() => {
-        console.log("✅ Fraud Service Database Connected");
-
-        // 2. Start Listening to RabbitMQ
-        connectRabbitMQ();
-    })
-    .catch((err) => {
-        console.error("❌ Fraud Service Database Connection Error:", err);
-    });
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-    res.json({ status: "FRAUD_SERVICE_UP", surveillance: "ACTIVE" });
 });
