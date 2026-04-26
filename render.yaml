@@ -2,6 +2,7 @@ services:
   # 1. API Gateway
   - type: web
     name: banking-gateway
+    plan: free
     env: node
     rootDir: api-gateway
     buildCommand: npm install
@@ -31,6 +32,7 @@ services:
   # 2. Auth Service
   - type: web
     name: banking-auth-service
+    plan: free
     env: node
     rootDir: auth-service
     buildCommand: npm install
@@ -46,6 +48,7 @@ services:
   # 3. User Service
   - type: web
     name: banking-user-service
+    plan: free
     env: node
     rootDir: user-service
     buildCommand: npm install
@@ -61,6 +64,7 @@ services:
   # 4. Transaction Service
   - type: web
     name: banking-transaction-service
+    plan: free
     env: node
     rootDir: transaction-service
     buildCommand: npm install
@@ -74,6 +78,7 @@ services:
   # 5. Notification Service
   - type: web
     name: banking-notification-service
+    plan: free
     env: node
     rootDir: notification-service
     buildCommand: npm install
@@ -85,6 +90,7 @@ services:
   # 6. Fraud Service
   - type: web
     name: banking-fraud-service
+    plan: free
     env: node
     rootDir: fraud-service
     buildCommand: npm install
@@ -98,6 +104,7 @@ services:
   # 7. Audit Service
   - type: web
     name: banking-audit-service
+    plan: free
     env: node
     rootDir: audit-service
     buildCommand: npm install
