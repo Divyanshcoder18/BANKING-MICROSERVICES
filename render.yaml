@@ -17,17 +17,17 @@ services:
       - key: JWT_SECRET
         sync: false
       - key: AUTH_SERVICE_URL
-        value: https://banking-auth-service.onrender.com
+        value: http://banking-auth-service:10000
       - key: USER_SERVICE_URL
-        value: https://banking-user-service.onrender.com
+        value: http://banking-user-service:10000
       - key: TRANSACTION_SERVICE_URL
-        value: https://banking-transaction-service.onrender.com
+        value: http://banking-transaction-service:10000
       - key: NOTIFICATION_SERVICE_URL
-        value: https://banking-notification-service.onrender.com
+        value: http://banking-notification-service:10000
       - key: FRAUD_SERVICE_URL
-        value: https://banking-fraud-service.onrender.com
+        value: http://banking-fraud-service:10000
       - key: AUDIT_SERVICE_URL
-        value: https://banking-audit-service.onrender.com
+        value: http://banking-audit-service:10000
 
   # 2. Auth Service
   - type: web
