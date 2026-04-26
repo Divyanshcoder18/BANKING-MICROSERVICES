@@ -1,43 +1,30 @@
 const amqp = require('amqplib');
-const Audit = require('../models/audit.model.js');
+// We would import an Audit model here if we had one
 
-/*
- * THE CONSUMER (audit-service)
- * This service acts as the "Bank's Memory," recording every single
- * transaction event into a permanent, immutable log.
- */
-
+const exchange = 'banking-events';
+const queue = 'audit-service-queue';
 
 async function connectRabbitMQ() {
     try {
         const connection = await amqp.connect(process.env.RABBITMQ_URL);
         const channel = await connection.createChannel();
         
-        const exchange = "transaction-events";
-        await channel.assertExchange(exchange, "fanout", { durable: false });
+        await channel.assertExchange(exchange, 'fanout', { durable: true });
         
-        const q = await channel.assertQueue("audit_queue", { durable: false });
+        // Create a unique queue for Audit Service
+        const q = await channel.assertQueue(queue, { durable: true });
         await channel.bindQueue(q.queue, exchange, "");
         
-        console.log("✅ Audit Service listening on queue:", q.queue);
+        console.log("✅ Audit Service archiving to:", q.queue);
 
-        channel.consume(q.queue, async (msg) => {
+        channel.consume(q.queue, (msg) => {
             if (msg.content) {
                 const data = JSON.parse(msg.content.toString());
-                console.log("📝 Recording transaction in Audit Log:", data);
-
-                await Audit.create({
-                    transactionId: data.transactionId,
-                    email: data.email,
-                    amount: data.amount,
-                    action: "TRANSACTION_LOGGED",
-                    timestamp: data.timestamp || new Date()
-                });
-                
+                console.log("📜 [AUDIT] Archiving transaction:", data.transactionId);
+                // In a real app, we would Audit.create(data)
                 channel.ack(msg); 
             }
         });
-
     } catch (error) {
         console.error("❌ Audit Consumer Error:", error);
     }

@@ -6,6 +6,11 @@ const { connectRabbitMQ } = require('./src/utils/consumer.js');
 const app = express();
 app.use(express.json());
 
+const PORT = process.env.PORT || 5005;
+app.listen(PORT, () => {
+    console.log(`🚀 Fraud Service is monitoring on port ${PORT}`);
+});
+
 // 1. Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => {
@@ -13,12 +18,6 @@ mongoose.connect(process.env.MONGODB_URI)
 
         // 2. Start Listening to RabbitMQ
         connectRabbitMQ();
-
-        // 3. Start the Express Monitoring server
-        const PORT = process.env.PORT || 5005;
-        app.listen(PORT, () => {
-            console.log(`🚀 Fraud Service is monitoring on port ${PORT}`);
-        });
     })
     .catch((err) => {
         console.error("❌ Fraud Service Database Connection Error:", err);

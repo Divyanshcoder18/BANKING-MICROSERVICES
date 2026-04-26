@@ -2,7 +2,7 @@ const amqp = require('amqplib');
 const axios = require('axios');
 
 let channel;
-const queue = 'transaction-events';
+const exchange = 'banking-events';
 
 async function connectRabbitMQ() {
     let retries = 5;
@@ -11,8 +11,11 @@ async function connectRabbitMQ() {
             console.log(`[RABBITMQ] Attempting to connect... (Retries left: ${retries})`);
             const connection = await amqp.connect(process.env.RABBITMQ_URI || 'amqp://localhost');
             channel = await connection.createChannel();
-            await channel.assertQueue(queue, { durable: true });
-            console.log("✅ [RABBITMQ] Connected successfully");
+            
+            // Use Fanout so ALL services (Audit, Fraud, etc) get every transaction
+            await channel.assertExchange(exchange, 'fanout', { durable: true });
+            
+            console.log("✅ [RABBITMQ] Connected successfully to Exchange");
             return;
         } catch (error) {
             retries -= 1;
@@ -27,24 +30,24 @@ async function connectRabbitMQ() {
 }
 
 async function publishTransactionEvent(eventData) {
-    // 1. Try RabbitMQ First
     if (channel) {
         try {
-            channel.sendToQueue(queue, Buffer.from(JSON.stringify(eventData)), { persistent: true });
-            console.log(`[RABBITMQ] Published: ${eventData.type}`);
+            // Broadcast to the exchange instead of a single queue
+            channel.publish(exchange, '', Buffer.from(JSON.stringify(eventData)), { persistent: true });
+            console.log(`[RABBITMQ] Broadcasted to exchange: ${eventData.type}`);
             return;
         } catch (error) {
-            console.error("❌ [RABBITMQ] Publish failed, falling back to HTTP...");
+            console.error("❌ [RABBITMQ] Broadcast failed, falling back to HTTP...");
         }
     }
 
-    // 2. Emergency HTTP Fallback (Direct connection to Notification Service)
+    // Emergency HTTP Fallback
     try {
-        console.log(`[HYBRID] Sending direct HTTP notification for: ${eventData.type}`);
-        await axios.post('http://localhost:5004/api/notify/transaction', eventData);
-        console.log("✅ [HYBRID] HTTP Notification Sent Successfully");
+        console.log(`[HYBRID] Sending direct HTTP notification...`);
+        // Note: Direct fallback only hits Notification Service
+        await axios.post('http://banking-notification-service:10000/api/notify/transaction', eventData);
     } catch (httpError) {
-        console.error("❌ [HYBRID] All notification methods failed:", httpError.message);
+        console.error("❌ [HYBRID] Fallback failed:", httpError.message);
     }
 }
 

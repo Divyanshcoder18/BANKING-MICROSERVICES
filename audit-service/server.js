@@ -6,6 +6,11 @@ const { connectRabbitMQ } = require('./src/utils/consumer.js');
 const app = express();
 app.use(express.json());
 
+const PORT = process.env.PORT || 5006;
+app.listen(PORT, () => {
+    console.log(`🚀 Audit Service is recording on port ${PORT}`);
+});
+
 // 1. Connect to Audit Database
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => {
@@ -13,12 +18,6 @@ mongoose.connect(process.env.MONGODB_URI)
 
         // 2. Start Listening
         connectRabbitMQ();
-
-        // 3. Start Server
-        const PORT = process.env.PORT || 5006;
-        app.listen(PORT, () => {
-            console.log(`🚀 Audit Service is recording on port ${PORT}`);
-        });
     })
     .catch((err) => {
         console.error("❌ Audit Service Database Error:", err);
