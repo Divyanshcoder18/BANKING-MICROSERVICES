@@ -22,46 +22,47 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// INTERNAL URLS
-const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://banking-auth-service:10000';
-const USER_URL = process.env.USER_SERVICE_URL || 'http://banking-user-service:10000';
-const TRANS_URL = process.env.TRANSACTION_SERVICE_URL || 'http://banking-transaction-service:10000';
-const NOTIF_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://banking-notification-service:10000';
-const FRAUD_URL = process.env.FRAUD_SERVICE_URL || 'http://banking-fraud-service:10000';
-const AUDIT_URL = process.env.AUDIT_SERVICE_URL || 'http://banking-audit-service:10000';
+// INTERNAL & EXTERNAL URLS
+const getUrls = (key, defaultInternal, defaultExternal) => [
+    process.env[key] || defaultInternal,
+    defaultExternal
+];
 
+const SERVICES = [
+    { name: 'Auth Service', urls: getUrls('AUTH_SERVICE_URL', 'http://banking-auth-service:10000', 'https://banking-auth-service.onrender.com') },
+    { name: 'User Service', urls: getUrls('USER_SERVICE_URL', 'http://banking-user-service:10000', 'https://banking-user-service.onrender.com') },
+    { name: 'Transaction Service', urls: getUrls('TRANSACTION_SERVICE_URL', 'http://banking-transaction-service:10000', 'https://banking-transaction-service.onrender.com') },
+    { name: 'Notification Service', urls: getUrls('NOTIFICATION_SERVICE_URL', 'http://banking-notification-service:10000', 'https://banking-notification-service.onrender.com') },
+    { name: 'Fraud Service', urls: getUrls('FRAUD_SERVICE_URL', 'http://banking-fraud-service:10000', 'https://banking-fraud-service.onrender.com') },
+    { name: 'Audit Service', urls: getUrls('AUDIT_SERVICE_URL', 'http://banking-audit-service:10000', 'https://banking-audit-service.onrender.com') }
+];
+
+// PROXY ROUTES (Using Internal)
 const proxyOptions = (target) => ({
     target,
     changeOrigin: true,
-    pathRewrite: { '^/api/[^/]+': '' }
+    pathRewrite: { '^/api/[^/]+': '' },
+    timeout: 30000
 });
 
-app.use('/api/auth', createProxyMiddleware(proxyOptions(AUTH_URL)));
-app.use('/api/users', createProxyMiddleware(proxyOptions(USER_URL)));
-app.use('/api/transaction', createProxyMiddleware(proxyOptions(TRANS_URL)));
+app.use('/api/auth', createProxyMiddleware(proxyOptions(process.env.AUTH_SERVICE_URL || 'http://banking-auth-service:10000')));
+app.use('/api/users', createProxyMiddleware(proxyOptions(process.env.USER_SERVICE_URL || 'http://banking-user-service:10000')));
+app.use('/api/transaction', createProxyMiddleware(proxyOptions(process.env.TRANSACTION_SERVICE_URL || 'http://banking-transaction-service:10000')));
 
-// HEALTH DASHBOARD - USING AXIOS FOR STABILITY
+// RESILIENT HEALTH DASHBOARD
 app.get('/api/health/status', async (req, res) => {
-    const services = [
-        { name: 'Auth Service', url: AUTH_URL },
-        { name: 'User Service', url: USER_URL },
-        { name: 'Transaction Service', url: TRANS_URL },
-        { name: 'Notification Service', url: NOTIF_URL },
-        { name: 'Fraud Service', url: FRAUD_URL },
-        { name: 'Audit Service', url: AUDIT_URL }
-    ];
-
-    const results = await Promise.all(services.map(async (service) => {
-        try {
-            // Using Axios with a 10s timeout
-            const response = await axios.get(`${service.url}/health`, { timeout: 10000 });
-            if (response.status === 200) {
-                return { name: service.name, status: 'UP', latency: 'Active' };
+    const results = await Promise.all(SERVICES.map(async (service) => {
+        for (const url of service.urls) {
+            try {
+                const response = await axios.get(`${url}/health`, { timeout: 8000 });
+                if (response.status === 200) {
+                    return { name: service.name, status: 'UP', latency: 'Active' };
+                }
+            } catch (err) {
+                // Ignore and try next URL
             }
-        } catch (err) {
-            console.log(`Diagnostic: Fail ${service.name} at ${service.url}`);
         }
-        return { name: service.name, status: 'DOWN', latency: 'N/A', error: 'Connecting...' };
+        return { name: service.name, status: 'DOWN', latency: 'N/A', error: 'Syncing...' };
     }));
 
     res.json({ services: results });
