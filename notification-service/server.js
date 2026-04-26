@@ -35,6 +35,7 @@ connectRabbitMQ()
         console.log("⚠️ [NOTIFY] RabbitMQ not found. Running in HTTP-Only mode.");
     });
 
+const PORT = process.env.PORT || 5004;
 app.listen(PORT, () => {
     console.log(`🚀 Notification Service active on port ${PORT}`);
 });
