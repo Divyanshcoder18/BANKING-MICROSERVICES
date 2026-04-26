@@ -121,7 +121,7 @@ app.get('/api/health/status', async (req, res) => {
     const results = await Promise.all(services.map(async (service) => {
         try {
             const start = Date.now();
-            const response = await fetch(`${service.url}/health`, { signal: AbortSignal.timeout(3000) });
+            const response = await fetch(`${service.url}/health`, { signal: AbortSignal.timeout(10000) });
             const latency = Date.now() - start;
             
             return {
