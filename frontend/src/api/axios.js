@@ -2,9 +2,8 @@ import axios from 'axios';
 
 // We create a custom instance of Axios
 const API = axios.create({
-  // This is the URL of your All-in-one Backend Server (Monolith)
-  // This is the URL of your Live API Gateway on Render
-  baseURL: 'https://banking-api-t8iu.onrender.com/api',
+  // Use the local or production API URL from environment variables
+  baseURL: import.meta.env.VITE_API_URL || 'https://banking-api-t8iu.onrender.com/api',
 });
 
 // The INTERCEPTOR
