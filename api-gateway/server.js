@@ -3,9 +3,13 @@ const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const rateLimit = require('express-rate-limit');
 const Redis = require('ioredis');
+const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 10000;
+
+// Enable CORS for frontend interaction
+app.use(cors());
 
 // 1. Redis Setup (Rate Limiting)
 const redis = new Redis(process.env.REDIS_URL);
@@ -47,8 +51,8 @@ app.use('/api/auth', createProxyMiddleware(createProxyOptions(AUTH_URL)));
 app.use('/api/users', createProxyMiddleware(createProxyOptions(USER_URL)));
 app.use('/api/transaction', createProxyMiddleware(createProxyOptions(TRANS_URL)));
 
-// 4. CENTRALIZED HEALTH MONITORING (The Pulse Dashboard)
-app.get('/api/health/system', async (req, res) => {
+// 4. CENTRALIZED HEALTH MONITORING
+app.get('/api/health/status', async (req, res) => {
     const services = [
         { name: 'Auth Service', url: AUTH_URL },
         { name: 'User Service', url: USER_URL },
@@ -61,7 +65,6 @@ app.get('/api/health/system', async (req, res) => {
     const results = await Promise.all(services.map(async (service) => {
         try {
             const start = Date.now();
-            // We use a 10s timeout to allow for "cold starts"
             const response = await fetch(`${service.url}/health`, { signal: AbortSignal.timeout(10000) });
             const latency = Date.now() - start;
             
@@ -70,12 +73,11 @@ app.get('/api/health/system', async (req, res) => {
             }
             throw new Error(`Status: ${response.status}`);
         } catch (err) {
-            console.log(`⚠️ ${service.name} unreachable via ${service.url}. Error: ${err.message}`);
             return { name: service.name, status: 'DOWN', latency: 'N/A', error: 'Service Unreachable' };
         }
     }));
 
-    res.json(results);
+    res.json({ services: results });
 });
 
 app.get('/health', (req, res) => res.json({ status: 'GATEWAY_UP' }));
