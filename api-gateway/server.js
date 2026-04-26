@@ -21,58 +21,53 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// 2. SMART DISCOVERY
-// We define both Internal (Fast) and External (Backup) URLs
-const getServiceUrl = (envVar, internalDefault, externalBackup) => {
-    return process.env[envVar] || internalDefault || externalBackup;
-};
+// 2. FIXED SERVICE URLS
+// We use the EXACT URLs from your Render dashboard
+const getUrl = (service) => `https://${service}.onrender.com`;
 
-const AUTH_URL = getServiceUrl('AUTH_SERVICE_URL', 'http://banking-auth-service:10000', 'https://banking-auth-service.onrender.com');
-const USER_URL = getServiceUrl('USER_SERVICE_URL', 'http://banking-user-service:10000', 'https://banking-user-service.onrender.com');
-const TRANS_URL = getServiceUrl('TRANSACTION_SERVICE_URL', 'http://banking-transaction-service:10000', 'https://banking-transaction-service.onrender.com');
-const NOTIF_URL = getServiceUrl('NOTIFICATION_SERVICE_URL', 'http://banking-notification-service:10000', 'https://banking-notification-service.onrender.com');
-const FRAUD_URL = getServiceUrl('FRAUD_SERVICE_URL', 'http://banking-fraud-service:10000', 'https://banking-fraud-service.onrender.com');
-const AUDIT_URL = getServiceUrl('AUDIT_SERVICE_URL', 'http://banking-audit-service:10000', 'https://banking-audit-service.onrender.com');
+const SERVICES = {
+    auth: getUrl('banking-auth-service'),
+    user: getUrl('banking-user-service'),
+    transaction: getUrl('banking-transaction-service'),
+    notification: getUrl('banking-notification-service'),
+    fraud: getUrl('banking-fraud-service'),
+    audit: getUrl('banking-audit-service')
+};
 
 // 3. PROXY ROUTES
 const proxyOptions = (target) => ({
     target,
     changeOrigin: true,
     pathRewrite: { '^/api/[^/]+': '' },
-    timeout: 30000, // 30 seconds
-    proxyTimeout: 30000
+    timeout: 60000, // 60 seconds for slow cold starts
+    proxyTimeout: 60000
 });
 
-app.use('/api/auth', createProxyMiddleware(proxyOptions(AUTH_URL)));
-app.use('/api/users', createProxyMiddleware(proxyOptions(USER_URL)));
-app.use('/api/transaction', createProxyMiddleware(proxyOptions(TRANS_URL)));
+app.use('/api/auth', createProxyMiddleware(proxyOptions(SERVICES.auth)));
+app.use('/api/users', createProxyMiddleware(proxyOptions(SERVICES.user)));
+app.use('/api/transaction', createProxyMiddleware(proxyOptions(SERVICES.transaction)));
 
-// 4. REAL-TIME PULSE MONITORING
+// 4. HEARTBEAT MONITORING
 app.get('/api/health/status', async (req, res) => {
-    const services = [
-        { name: 'Auth Service', url: AUTH_URL },
-        { name: 'User Service', url: USER_URL },
-        { name: 'Transaction Service', url: TRANS_URL },
-        { name: 'Notification Service', url: NOTIF_URL },
-        { name: 'Fraud Service', url: FRAUD_URL },
-        { name: 'Audit Service', url: AUDIT_URL }
+    const list = [
+        { id: 'auth', name: 'Auth Service' },
+        { id: 'user', name: 'User Service' },
+        { id: 'transaction', name: 'Transaction Service' },
+        { id: 'notification', name: 'Notification Service' },
+        { id: 'fraud', name: 'Fraud Service' },
+        { id: 'audit', name: 'Audit Service' }
     ];
 
-    const results = await Promise.all(services.map(async (service) => {
-        // Try internal first, then external
-        const urlsToTry = [service.url, service.url.replace('http://', 'https://').replace(':10000', '.onrender.com')];
-        
-        for (const url of urlsToTry) {
-            try {
-                const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(8000) });
-                if (response.ok) {
-                    return { name: service.name, status: 'UP', latency: 'Active' };
-                }
-            } catch (e) {
-                continue; 
-            }
+    const results = await Promise.all(list.map(async (s) => {
+        const url = SERVICES[s.id];
+        try {
+            // INCREASED TIMEOUT TO 20 SECONDS FOR COLD STARTS
+            const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(20000) });
+            if (response.ok) return { name: s.name, status: 'UP', latency: 'Active' };
+        } catch (e) {
+            console.error(`FAILED: ${s.name} at ${url} - ${e.message}`);
         }
-        return { name: service.name, status: 'DOWN', latency: 'N/A', error: 'Waiting for boot...' };
+        return { name: s.name, status: 'DOWN', latency: 'N/A', error: 'Booting...' };
     }));
 
     res.json({ services: results });
