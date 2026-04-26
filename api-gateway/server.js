@@ -8,50 +8,46 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
-// Enable CORS for frontend interaction
 app.use(cors());
 
-// 1. Redis Setup (Rate Limiting)
+// 1. Redis Setup
 const redis = new Redis(process.env.REDIS_URL);
 redis.on('connect', () => console.log('✅ Gateway Protected with Redis'));
 
 const limiter = rateLimit({
     windowMs: 15 * 60 * 1000,
     max: 100,
-    message: 'Too many requests, please try again later.'
+    message: 'Too many requests'
 });
 app.use(limiter);
 
-// 2. LOGGING MIDDLEWARE
-app.use((req, res, next) => {
-    console.log(`[GATEWAY] ${new Date().toISOString()} - ${req.method} ${req.url}`);
-    next();
-});
+// 2. SMART DISCOVERY
+// We define both Internal (Fast) and External (Backup) URLs
+const getServiceUrl = (envVar, internalDefault, externalBackup) => {
+    return process.env[envVar] || internalDefault || externalBackup;
+};
+
+const AUTH_URL = getServiceUrl('AUTH_SERVICE_URL', 'http://banking-auth-service:10000', 'https://banking-auth-service.onrender.com');
+const USER_URL = getServiceUrl('USER_SERVICE_URL', 'http://banking-user-service:10000', 'https://banking-user-service.onrender.com');
+const TRANS_URL = getServiceUrl('TRANSACTION_SERVICE_URL', 'http://banking-transaction-service:10000', 'https://banking-transaction-service.onrender.com');
+const NOTIF_URL = getServiceUrl('NOTIFICATION_SERVICE_URL', 'http://banking-notification-service:10000', 'https://banking-notification-service.onrender.com');
+const FRAUD_URL = getServiceUrl('FRAUD_SERVICE_URL', 'http://banking-fraud-service:10000', 'https://banking-fraud-service.onrender.com');
+const AUDIT_URL = getServiceUrl('AUDIT_SERVICE_URL', 'http://banking-audit-service:10000', 'https://banking-audit-service.onrender.com');
 
 // 3. PROXY ROUTES
-const createProxyOptions = (target) => ({
+const proxyOptions = (target) => ({
     target,
     changeOrigin: true,
     pathRewrite: { '^/api/[^/]+': '' },
-    onError: (err, req, res) => {
-        console.error(`❌ Proxy Error for ${target}:`, err.message);
-        res.status(502).json({ message: 'Service temporarily unavailable' });
-    }
+    timeout: 30000, // 30 seconds
+    proxyTimeout: 30000
 });
 
-// URLs from Env (Defaulting to Internal Names if missing)
-const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://banking-auth-service:10000';
-const USER_URL = process.env.USER_SERVICE_URL || 'http://banking-user-service:10000';
-const TRANS_URL = process.env.TRANSACTION_SERVICE_URL || 'http://banking-transaction-service:10000';
-const NOTIF_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://banking-notification-service:10000';
-const FRAUD_URL = process.env.FRAUD_SERVICE_URL || 'http://banking-fraud-service:10000';
-const AUDIT_URL = process.env.AUDIT_SERVICE_URL || 'http://banking-audit-service:10000';
+app.use('/api/auth', createProxyMiddleware(proxyOptions(AUTH_URL)));
+app.use('/api/users', createProxyMiddleware(proxyOptions(USER_URL)));
+app.use('/api/transaction', createProxyMiddleware(proxyOptions(TRANS_URL)));
 
-app.use('/api/auth', createProxyMiddleware(createProxyOptions(AUTH_URL)));
-app.use('/api/users', createProxyMiddleware(createProxyOptions(USER_URL)));
-app.use('/api/transaction', createProxyMiddleware(createProxyOptions(TRANS_URL)));
-
-// 4. CENTRALIZED HEALTH MONITORING
+// 4. REAL-TIME PULSE MONITORING
 app.get('/api/health/status', async (req, res) => {
     const services = [
         { name: 'Auth Service', url: AUTH_URL },
@@ -63,18 +59,20 @@ app.get('/api/health/status', async (req, res) => {
     ];
 
     const results = await Promise.all(services.map(async (service) => {
-        try {
-            const start = Date.now();
-            const response = await fetch(`${service.url}/health`, { signal: AbortSignal.timeout(10000) });
-            const latency = Date.now() - start;
-            
-            if (response.ok) {
-                return { name: service.name, status: 'UP', latency: `${latency}ms` };
+        // Try internal first, then external
+        const urlsToTry = [service.url, service.url.replace('http://', 'https://').replace(':10000', '.onrender.com')];
+        
+        for (const url of urlsToTry) {
+            try {
+                const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(8000) });
+                if (response.ok) {
+                    return { name: service.name, status: 'UP', latency: 'Active' };
+                }
+            } catch (e) {
+                continue; 
             }
-            throw new Error(`Status: ${response.status}`);
-        } catch (err) {
-            return { name: service.name, status: 'DOWN', latency: 'N/A', error: 'Service Unreachable' };
         }
+        return { name: service.name, status: 'DOWN', latency: 'N/A', error: 'Waiting for boot...' };
     }));
 
     res.json({ services: results });
@@ -83,5 +81,5 @@ app.get('/api/health/status', async (req, res) => {
 app.get('/health', (req, res) => res.json({ status: 'GATEWAY_UP' }));
 
 app.listen(PORT, () => {
-    console.log(`🚀 API Gateway running on port ${PORT}`);
+    console.log(`🚀 Gateway Active on ${PORT}`);
 });
