@@ -6,10 +6,11 @@ const { connectRabbitMQ } = require('./src/utils/consumer.js');
 const app = express();
 app.use(express.json());
 
-// HEALTH CHECK MUST BE FIRST
-app.get('/health', (req, res) => res.json({ status: 'UP' }));
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'UP', service: 'fraud' });
+});
 
-const PORT = process.env.PORT || 5005;
+const PORT = process.env.PORT || 10000;
 
 mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log("✅ Fraud Service DB Connected"))
@@ -17,6 +18,6 @@ mongoose.connect(process.env.MONGODB_URI)
 
 connectRabbitMQ();
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Fraud Service is monitoring on port ${PORT}`);
 });

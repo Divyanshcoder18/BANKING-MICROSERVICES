@@ -5,19 +5,16 @@ const { connectRabbitMQ } = require('./src/utils/consumer.js');
 const app = express();
 app.use(express.json());
 
-// HEALTH CHECK MUST BE FIRST
-app.get('/health', (req, res) => res.json({ status: 'UP' }));
+// THE MAGIC FIX: This route must be exactly like the others
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'UP', service: 'notification' });
+});
 
-const PORT = process.env.PORT || 5004;
+const PORT = process.env.PORT || 10000;
 
-connectRabbitMQ()
-    .then(() => {
-        console.log("✅ [NOTIFY] Connected to RabbitMQ");
-    })
-    .catch(err => {
-        console.log("⚠️ [NOTIFY] RabbitMQ not found. Running in HTTP-Only mode.");
-    });
+// Connect to RabbitMQ in background so it doesn't block startup
+connectRabbitMQ().catch(err => console.log("RabbitMQ pending..."));
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Notification Service active on port ${PORT}`);
 });
