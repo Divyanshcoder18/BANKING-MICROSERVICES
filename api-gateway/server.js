@@ -21,53 +21,53 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// 2. FIXED SERVICE URLS
-// We use the EXACT URLs from your Render dashboard
-const getUrl = (service) => `https://${service}.onrender.com`;
+// 2. DISCOVERY LOGIC
+// We try Internal first (fast), then External (backup)
+const SERVICES = [
+    { id: 'auth', name: 'Auth Service', internal: 'http://banking-auth-service:10000', external: 'https://banking-auth-service.onrender.com' },
+    { id: 'user', name: 'User Service', internal: 'http://banking-user-service:10000', external: 'https://banking-user-service.onrender.com' },
+    { id: 'transaction', name: 'Transaction Service', internal: 'http://banking-transaction-service:10000', external: 'https://banking-transaction-service.onrender.com' },
+    { id: 'notification', name: 'Notification Service', internal: 'http://banking-notification-service:10000', external: 'https://banking-notification-service.onrender.com' },
+    { id: 'fraud', name: 'Fraud Service', internal: 'http://banking-fraud-service:10000', external: 'https://banking-fraud-service.onrender.com' },
+    { id: 'audit', name: 'Audit Service', internal: 'http://banking-audit-service:10000', external: 'https://banking-audit-service.onrender.com' }
+];
 
-const SERVICES = {
-    auth: getUrl('banking-auth-service'),
-    user: getUrl('banking-user-service'),
-    transaction: getUrl('banking-transaction-service'),
-    notification: getUrl('banking-notification-service'),
-    fraud: getUrl('banking-fraud-service'),
-    audit: getUrl('banking-audit-service')
+// PROXY ROUTES (Using Internal by default for speed)
+const proxyOptions = (id) => {
+    const s = SERVICES.find(x => x.id === id);
+    return {
+        target: s.internal,
+        changeOrigin: true,
+        pathRewrite: { '^/api/[^/]+': '' },
+        timeout: 60000,
+        proxyTimeout: 60000,
+        router: async (req) => {
+            // If internal fails, the proxy will naturally throw
+            return s.internal; 
+        }
+    }
 };
 
-// 3. PROXY ROUTES
-const proxyOptions = (target) => ({
-    target,
-    changeOrigin: true,
-    pathRewrite: { '^/api/[^/]+': '' },
-    timeout: 60000, // 60 seconds for slow cold starts
-    proxyTimeout: 60000
-});
+app.use('/api/auth', createProxyMiddleware(proxyOptions('auth')));
+app.use('/api/users', createProxyMiddleware(proxyOptions('user')));
+app.use('/api/transaction', createProxyMiddleware(proxyOptions('transaction')));
 
-app.use('/api/auth', createProxyMiddleware(proxyOptions(SERVICES.auth)));
-app.use('/api/users', createProxyMiddleware(proxyOptions(SERVICES.user)));
-app.use('/api/transaction', createProxyMiddleware(proxyOptions(SERVICES.transaction)));
-
-// 4. HEARTBEAT MONITORING
+// 4. SMART DIAGNOSTIC HEALTH CHECK
 app.get('/api/health/status', async (req, res) => {
-    const list = [
-        { id: 'auth', name: 'Auth Service' },
-        { id: 'user', name: 'User Service' },
-        { id: 'transaction', name: 'Transaction Service' },
-        { id: 'notification', name: 'Notification Service' },
-        { id: 'fraud', name: 'Fraud Service' },
-        { id: 'audit', name: 'Audit Service' }
-    ];
+    const results = await Promise.all(SERVICES.map(async (s) => {
+        // Try Internal, then External
+        const urls = [s.internal, s.external];
+        let lastError = 'Booting...';
 
-    const results = await Promise.all(list.map(async (s) => {
-        const url = SERVICES[s.id];
-        try {
-            // INCREASED TIMEOUT TO 20 SECONDS FOR COLD STARTS
-            const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(20000) });
-            if (response.ok) return { name: s.name, status: 'UP', latency: 'Active' };
-        } catch (e) {
-            console.error(`FAILED: ${s.name} at ${url} - ${e.message}`);
+        for (const url of urls) {
+            try {
+                const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(15000) });
+                if (response.ok) return { name: s.name, status: 'UP', latency: 'Active' };
+            } catch (e) {
+                lastError = e.message;
+            }
         }
-        return { name: s.name, status: 'DOWN', latency: 'N/A', error: 'Booting...' };
+        return { name: s.name, status: 'DOWN', latency: 'N/A', error: lastError };
     }));
 
     res.json({ services: results });
