@@ -6,7 +6,8 @@ const queue = 'audit-service-queue';
 
 async function connectRabbitMQ() {
     try {
-        const connection = await amqp.connect(process.env.RABBITMQ_URI);
+        const uri = process.env.RABBITMQ_URI || "amqps://blvweviz:7I9b-e4T1lV5URLhQwVphx5bdQ_pg87s@chameleon.lmq.cloudamqp.com/blvweviz";
+        const connection = await amqp.connect(uri);
         const channel = await connection.createChannel();
         
         await channel.assertExchange(exchange, 'fanout', { durable: true });
