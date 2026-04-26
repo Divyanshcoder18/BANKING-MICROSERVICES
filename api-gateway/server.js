@@ -8,9 +8,10 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 10000;
 
+// ALLOW FRONTEND TO TALK TO BACKEND
 app.use(cors());
 
-// 1. Redis Setup
+// Redis Setup
 const redis = new Redis(process.env.REDIS_URL);
 redis.on('connect', () => console.log('✅ Gateway Protected with Redis'));
 
@@ -21,53 +22,43 @@ const limiter = rateLimit({
 });
 app.use(limiter);
 
-// 2. DISCOVERY LOGIC
-// We try Internal first (fast), then External (backup)
-const SERVICES = [
-    { id: 'auth', name: 'Auth Service', internal: 'http://banking-auth-service:10000', external: 'https://banking-auth-service.onrender.com' },
-    { id: 'user', name: 'User Service', internal: 'http://banking-user-service:10000', external: 'https://banking-user-service.onrender.com' },
-    { id: 'transaction', name: 'Transaction Service', internal: 'http://banking-transaction-service:10000', external: 'https://banking-transaction-service.onrender.com' },
-    { id: 'notification', name: 'Notification Service', internal: 'http://banking-notification-service:10000', external: 'https://banking-notification-service.onrender.com' },
-    { id: 'fraud', name: 'Fraud Service', internal: 'http://banking-fraud-service:10000', external: 'https://banking-fraud-service.onrender.com' },
-    { id: 'audit', name: 'Audit Service', internal: 'http://banking-audit-service:10000', external: 'https://banking-audit-service.onrender.com' }
-];
+// INTERNAL URLS (From Env Vars or defaults)
+const AUTH_URL = process.env.AUTH_SERVICE_URL || 'http://banking-auth-service:10000';
+const USER_URL = process.env.USER_SERVICE_URL || 'http://banking-user-service:10000';
+const TRANS_URL = process.env.TRANSACTION_SERVICE_URL || 'http://banking-transaction-service:10000';
+const NOTIF_URL = process.env.NOTIFICATION_SERVICE_URL || 'http://banking-notification-service:10000';
+const FRAUD_URL = process.env.FRAUD_SERVICE_URL || 'http://banking-fraud-service:10000';
+const AUDIT_URL = process.env.AUDIT_SERVICE_URL || 'http://banking-audit-service:10000';
 
-// PROXY ROUTES (Using Internal by default for speed)
-const proxyOptions = (id) => {
-    const s = SERVICES.find(x => x.id === id);
-    return {
-        target: s.internal,
-        changeOrigin: true,
-        pathRewrite: { '^/api/[^/]+': '' },
-        timeout: 60000,
-        proxyTimeout: 60000,
-        router: async (req) => {
-            // If internal fails, the proxy will naturally throw
-            return s.internal; 
-        }
-    }
-};
+// PROXY ROUTES
+const proxyOptions = (target) => ({
+    target,
+    changeOrigin: true,
+    pathRewrite: { '^/api/[^/]+': '' }
+});
 
-app.use('/api/auth', createProxyMiddleware(proxyOptions('auth')));
-app.use('/api/users', createProxyMiddleware(proxyOptions('user')));
-app.use('/api/transaction', createProxyMiddleware(proxyOptions('transaction')));
+app.use('/api/auth', createProxyMiddleware(proxyOptions(AUTH_URL)));
+app.use('/api/users', createProxyMiddleware(proxyOptions(USER_URL)));
+app.use('/api/transaction', createProxyMiddleware(proxyOptions(TRANS_URL)));
 
-// 4. SMART DIAGNOSTIC HEALTH CHECK
+// HEALTH DASHBOARD
 app.get('/api/health/status', async (req, res) => {
-    const results = await Promise.all(SERVICES.map(async (s) => {
-        // Try Internal, then External
-        const urls = [s.internal, s.external];
-        let lastError = 'Booting...';
+    const services = [
+        { name: 'Auth Service', url: AUTH_URL },
+        { name: 'User Service', url: USER_URL },
+        { name: 'Transaction Service', url: TRANS_URL },
+        { name: 'Notification Service', url: NOTIF_URL },
+        { name: 'Fraud Service', url: FRAUD_URL },
+        { name: 'Audit Service', url: AUDIT_URL }
+    ];
 
-        for (const url of urls) {
-            try {
-                const response = await fetch(`${url}/health`, { signal: AbortSignal.timeout(15000) });
-                if (response.ok) return { name: s.name, status: 'UP', latency: 'Active' };
-            } catch (e) {
-                lastError = e.message;
-            }
-        }
-        return { name: s.name, status: 'DOWN', latency: 'N/A', error: lastError };
+    const results = await Promise.all(services.map(async (service) => {
+        try {
+            // We use a simple fetch to see if the service is alive
+            const response = await fetch(`${service.url}/health`);
+            if (response.ok) return { name: service.name, status: 'UP', latency: 'Active' };
+        } catch (err) {}
+        return { name: service.name, status: 'DOWN', latency: 'N/A', error: 'Connecting...' };
     }));
 
     res.json({ services: results });

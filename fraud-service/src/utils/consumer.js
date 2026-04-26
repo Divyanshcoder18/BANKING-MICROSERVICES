@@ -6,7 +6,7 @@ const queue = 'fraud-service-queue';
 
 async function connectRabbitMQ() {
     try {
-        const connection = await amqp.connect(process.env.RABBITMQ_URL);
+        const connection = await amqp.connect(process.env.RABBITMQ_URI);
         const channel = await connection.createChannel();
         
         await channel.assertExchange(exchange, 'fanout', { durable: true });

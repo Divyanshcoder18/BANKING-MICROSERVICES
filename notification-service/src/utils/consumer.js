@@ -8,7 +8,7 @@ async function connectRabbitMQ() {
     let retries = 5;
     while (retries) {
         try {
-            const connection = await amqp.connect(process.env.RABBITMQ_URL || 'amqp://localhost');
+            const connection = await amqp.connect(process.env.RABBITMQ_URI || 'amqp://localhost');
             const channel = await connection.createChannel();
 
             await channel.assertExchange(exchange, 'fanout', { durable: true });

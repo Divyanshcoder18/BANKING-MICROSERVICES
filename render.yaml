@@ -98,7 +98,7 @@ services:
     envVars:
       - key: MONGODB_URI
         sync: false
-      - key: RABBITMQ_URL
+      - key: RABBITMQ_URI
         sync: false
 
   # 7. Audit Service
@@ -112,5 +112,5 @@ services:
     envVars:
       - key: MONGODB_URI
         sync: false
-      - key: RABBITMQ_URL
+      - key: RABBITMQ_URI
         sync: false
