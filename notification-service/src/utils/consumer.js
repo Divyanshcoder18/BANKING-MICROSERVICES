@@ -1,7 +1,7 @@
 const amqp = require('amqplib');
 const { sendTransactionEmail } = require('../services/email.services.js');
 
-const queue = 'transaction-events';
+const queue = 'transaction-notifications';
 
 async function connectRabbitMQ() {
     let retries = 5;
