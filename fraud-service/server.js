@@ -6,7 +6,8 @@ const { connectRabbitMQ } = require('./src/utils/consumer.js');
 const app = express();
 app.use(express.json());
 
-const PORT = process.env.PORT || 5005;
+const PORT = process.env.PORT || 5005;app.get('/health', (req, res) => res.json({ status: 'UP' }));
+
 app.listen(PORT, () => {
     console.log(`🚀 Fraud Service is monitoring on port ${PORT}`);
 });
