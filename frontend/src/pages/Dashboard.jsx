@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import API from '../api/axios';
 import { motion } from 'framer-motion';
-import { Wallet, ArrowUpRight, ArrowDownLeft, History, LogOut, Plus, RefreshCw } from 'lucide-react';
+import { Wallet, ArrowUpRight, ArrowDownLeft, History, LogOut, Plus, RefreshCw, ChevronRight } from 'lucide-react';
 import { toast, Toaster } from 'react-hot-toast';
 import TransferModal from '../components/TransferModal';
 import DepositModal from '../components/DepositModal';
@@ -13,6 +14,7 @@ import { ShieldCheck, Activity, CreditCard, Landmark, PiggyBank, Briefcase } fro
 
 function Dashboard() {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   // 1. STATE: We need spaces in memory to hold our bank data
   // 1. STATE: We need spaces in memory to hold our bank data
@@ -117,6 +119,13 @@ function Dashboard() {
               className={`p-2 rounded-full border border-slate-800 bg-slate-900 text-slate-400 hover:text-white transition-all ${refreshing ? 'animate-spin' : ''}`}
             >
               <RefreshCw size={18} />
+            </button>
+            <button
+              onClick={() => navigate('/status')}
+              className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-4 py-2 rounded-xl text-slate-400 hover:text-blue-400 transition-all text-xs font-bold"
+            >
+              <Activity size={14} />
+              <span className="hidden sm:inline">System Health</span>
             </button>
             <button
               onClick={logout}

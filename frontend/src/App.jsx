@@ -4,6 +4,7 @@ import { useAuth } from './context/AuthContext';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
+import SystemStatus from './pages/SystemStatus';
 
 function App() {
   const { user, loading } = useAuth(); // We "turn on the tap" to get 'user' and 'loading'
@@ -24,6 +25,7 @@ function App() {
       {/* 3. LOGIC: If user tries to go to /dashboard but IS NOT logged in, 
              automatically send them back to /login */}
       <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" />} />
+      <Route path="/status" element={user ? <SystemStatus /> : <Navigate to="/login" />} />
 
       {/* 4. DEFAULT: Any other URL redirects to login or dashboard depending on status */}
       <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} />} />

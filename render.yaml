@@ -21,6 +21,12 @@ services:
         value: https://banking-user-service.onrender.com
       - key: TRANSACTION_SERVICE_URL
         value: https://banking-transaction-service.onrender.com
+      - key: NOTIFICATION_SERVICE_URL
+        value: https://banking-notification-service.onrender.com
+      - key: FRAUD_SERVICE_URL
+        value: https://banking-fraud-service.onrender.com
+      - key: AUDIT_SERVICE_URL
+        value: https://banking-audit-service.onrender.com
 
   # 2. Auth Service
   - type: web
@@ -74,4 +80,30 @@ services:
     startCommand: node server.js
     envVars:
       - key: RABBITMQ_URI
+        sync: false
+
+  # 6. Fraud Service
+  - type: web
+    name: banking-fraud-service
+    env: node
+    rootDir: fraud-service
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false
+
+  # 7. Audit Service
+  - type: web
+    name: banking-audit-service
+    env: node
+    rootDir: audit-service
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: MONGODB_URI
+        sync: false
+      - key: RABBITMQ_URL
         sync: false

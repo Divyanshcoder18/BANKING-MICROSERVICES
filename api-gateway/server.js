@@ -107,6 +107,46 @@ app.use('/api/users', protect, proxy(process.env.USER_SERVICE_URL || 'http://loc
 app.use('/api/account', protect, proxy(process.env.USER_SERVICE_URL || 'http://localhost:5003', createProxyOptions(process.env.USER_SERVICE_URL || 'http://localhost:5003')));
 app.use('/api/transaction', protect, proxy(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001', createProxyOptions(process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001')));
 
+// 🏥 GLOBAL SYSTEM HEALTH CHECK
+app.get('/api/health/status', async (req, res) => {
+    const services = [
+        { name: 'Auth Service', url: process.env.AUTH_SERVICE_URL || 'http://localhost:5002' },
+        { name: 'User Service', url: process.env.USER_SERVICE_URL || 'http://localhost:5003' },
+        { name: 'Transaction Service', url: process.env.TRANSACTION_SERVICE_URL || 'http://localhost:5001' },
+        { name: 'Notification Service', url: process.env.NOTIFICATION_SERVICE_URL || 'http://localhost:5004' },
+        { name: 'Fraud Service', url: process.env.FRAUD_SERVICE_URL || 'http://localhost:5005' },
+        { name: 'Audit Service', url: process.env.AUDIT_SERVICE_URL || 'http://localhost:5006' },
+    ];
+
+    const results = await Promise.all(services.map(async (service) => {
+        try {
+            const start = Date.now();
+            const response = await fetch(`${service.url}/health`, { signal: AbortSignal.timeout(3000) });
+            const latency = Date.now() - start;
+            
+            return {
+                name: service.name,
+                status: response.ok ? 'UP' : 'DOWN',
+                latency: `${latency}ms`,
+                details: response.ok ? await response.json() : 'Service responded with error'
+            };
+        } catch (error) {
+            return {
+                name: service.name,
+                status: 'DOWN',
+                latency: 'N/A',
+                error: error.name === 'TimeoutError' ? 'Connection Timeout' : 'Service Unreachable'
+            };
+        }
+    }));
+
+    res.json({
+        gateway: 'UP',
+        timestamp: new Date().toISOString(),
+        services: results
+    });
+});
+
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
